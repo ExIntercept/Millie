@@ -304,19 +304,8 @@ Before any of this, each recording was converted to 16 kHz mono and trimmed, wit
 | Environment | Python 3.10, torch 2.1.2. Colab's default Python 3.13 / torch 2.14 break the openWakeWord training tools. |
 | Output | `hey_millie.onnx` and `hey_millie.tflite` |
 
-### 4.3 How well it works (honest status)
 
-- **American-accented speakers:** it detects them reliably.
-- **My own voice:** it detects it poorly.
-
-The cause is the mix of training data. About 75% of the positive examples come from synthetic American-English audiobook voices. The other 25% come from only 5 real takes of my voice. The altered copies vary pitch, speed and noise, but they don't change pronunciation, so the model learned mostly the American way of saying it.
-
-**Planned fix:**
-1. Record 30–50 real takes in different rooms, at different distances and volumes, and keep about 10 of them as a held-out test set.
-2. Use about 20 altered copies per take instead of 50, and raise the total to about 2,000 clips, so my real voice makes up about half the training data.
-3. Optionally, add an openWakeWord *custom verifier*: a small speaker-specific model that double-checks low-confidence detections.
-
-### 4.4 Using a trained model
+### 4.3 Using a trained model
 
 Put the file in `data/` as `hey_millie.tflite` or `hey_millie.onnx`. If both exist, `.tflite` is loaded first. To use a different file, set `WAKEWORD_MODEL=path/to/model` in `.env`.
 
