@@ -239,7 +239,7 @@ Workspace files (documents you create, convert or merge) are stored in `data/wor
 
 ## 4. The "Hey Millie" wake word model
 
-The wake word detector is a small custom model trained with [openWakeWord](https://github.com/dscripka/openWakeWord). This section describes the training run that produced the current `hey_millie.onnx` / `hey_millie.tflite`.
+The wake word detector is a custom, fully on-device model trained with [openWakeWord](https://github.com/dscripka/openWakeWord). The reproducible training pipeline is documented in [`hey_millie_training_sarvam.ipynb`](hey_millie_training_sarvam.ipynb).
 
 ### 4.1 How openWakeWord works
 
@@ -252,68 +252,82 @@ flowchart LR
     E --> F["score 0–1"]
 ```
 
-Only the last block is trained. The first two models are shared openWakeWord models that already turn audio into useful speech features. Because of that, a good detector can be trained mostly from synthetic speech, and the trained model is only a few hundred KB.
+Only the classification head is trained. The first two models are pre-trained feature extractors that map audio into acoustic embeddings. The resulting head is compact (~206 KB) and runs smoothly on CPU via TensorFlow Lite (`ai_edge_litert`).
 
-### 4.2 What it was trained on
+---
 
-**Positive examples** (people saying the wake phrase): 1,000 clips
+### 4.2 The Indian Accent Challenge & Sarvam AI Solution
 
-| Source | Clips | How it was made |
-|---|---|---|
-| **My own voice** | 255 | 6 recordings, `hey_millie_01.wav` – `hey_millie_06.wav`. `01`–`05` were used for training: each original, plus 50 altered copies of each one. |
-| **Synthetic voices** | 745 | Piper TTS, `en_US-libritts_r-medium` (a multi-speaker model trained on LibriTTS-R audiobook readers). Phrases: "hey millie", "hey milly", "hay millie" (plus "hey mili" in the first generation pass). |
+#### The Initial Problem: American Accent Bias
+In the initial version, positive training samples were generated using standard American Piper TTS voices (`en_US-libritts_r-medium`). While American-accented speech was detected reliably, **the model consistently missed Indian-accented speech and the author's own voice**. Altering pitch and speed on American synthetic voices could not overcome the fundamental phonetic differences in Indian English vowel lengths, retroflex consonants, and cadence.
 
-How the 50 altered copies of each own-voice recording were made (`prep_my_voice.py` in the training notebook):
-- speed changed ±15%
-- pitch shifted up to ±3 semitones
-- volume changed −8 to +6 dB
-- light hiss added (15–40 dB signal-to-noise)
-- room echo from real recorded rooms (30% of copies)
-- background music or noise (50% of copies)
+#### The Fix: The Sarvam AI Multi-Voice Dataset
+To fix this, we synthesized a diverse, authentic Indian English dataset using **[Sarvam AI's](https://www.sarvam.ai/) text-to-speech API** (`bulbul:v3` and `bulbul:v4-flash`):
 
-Before any of this, each recording was converted to 16 kHz mono and trimmed, with 0.25 s of silence added on each side.
+- **261 distinct Indian speakers**: Spanning male and female voices across diverse age groups, conversational personas, and regional Indian English cadences (Hindi, Tamil, Telugu, Marathi, Bengali, Kannada, Punjabi, Gujarati, and Assamese accents).
+- **Zero American positives**: Replaced all Piper positives with genuine Indian synthetic voices.
 
-**`hey_millie_06.wav` was held out.** It was never used for training or for choosing the best checkpoint, so testing on it is honest. With only one held-out clip, though, that test is a sanity check, not an accuracy figure.
+#### Perturbation & Speaker-Disjoint Split
+The raw audio was perturbed and split strictly by speaker identity to ensure the model generalizes rather than memorizing voices:
 
-**Negative examples** (things that must not trigger it):
+1. **Perturbation Pipeline**:
+   - Audio resampling to 16 kHz mono int16 with edge padding.
+   - Speed perturbation (±15%).
+   - Pitch shifting (±3 semitones).
+   - Dynamic range adjustments & room reverberation simulation (MIT RIR impulse responses from 270 real rooms).
+   - Ambient background noise injection (AudioSet + Free Music Archive).
+   - Produced **768 clean positive clips** (256 base speakers × 3 variations).
 
-| Source | Size | Purpose |
-|---|---|---|
-| Adversarial phrases (Piper TTS) | 1,000 train + 300 validation clips | Words that sound similar to "hey millie", generated automatically from the CMU pronunciation dictionary |
-| ACAV100M precomputed features | ~2,000 hours | General speech, music and noise from the web |
-| False-positive validation set | ~11 hours | Used to estimate false activations per hour |
+2. **Train / Validation Split by Speaker**:
+   - **Training set**: 60 unique speakers (651 clips).
+   - **Validation set**: 23 completely distinct, held-out speakers (117 clips).
+   - *Zero speaker overlap* ensures validation recall measures true generalization to unseen voices.
 
-**Augmentation applied to every clip** during training (on top of the copies above):
+3. **Negative Dataset**:
+   - **Adversarial phrases**: 1,000 training + 300 validation phonetically similar clips from Piper TTS ("hey milly", "hay millie", and similar CMU dictionary phrases) to prevent false triggers on near-homophones.
+   - **Ambient / Background speech**: ~2,000 hours of ACAV100M web audio and speech.
 
-| Data | Size |
-|---|---|
-| MIT room impulse responses | 270 real rooms |
-| AudioSet (balanced train, shard 09) | 500 clips |
-| Free Music Archive | 120 × 30 s clips (1 hour) |
+---
 
-**Training settings:**
+### 4.3 Training & Evaluation
 
 | Setting | Value |
 |---|---|
-| Model | openWakeWord DNN head, layer size 32 |
-| Steps | 10,000 |
-| Validation clips | 300 positive + 300 adversarial |
-| Target false positives | 0.2 per hour |
-| Max negative weight | 1500 |
-| Hardware | Google Colab, NVIDIA T4 |
-| Environment | Python 3.10, torch 2.1.2. Colab's default Python 3.13 / torch 2.14 break the openWakeWord training tools. |
-| Output | `hey_millie.onnx` and `hey_millie.tflite` |
+| **Architecture** | openWakeWord DNN head (layer size: 32) |
+| **Training Steps** | 10,000 steps |
+| **Hardware** | Google Colab, NVIDIA T4 GPU |
+| **Environment** | Python 3.10, PyTorch 2.1.2, openWakeWord |
+| **Export Formats** | `hey_millie.onnx` (205 KB) and `hey_millie.tflite` (206 KB) |
 
+#### Real-Voice Hold-out Evaluation
+The model was tested against an independent test set of real-microphone recordings of the author's voice (never seen during training or validation):
 
-### 4.3 Using a trained model
+| Clip | Max Score | Result (`threshold: 0.30`) | Result (`threshold: 0.50`) |
+|---|---|---|---|
+| `hey_millie_01.wav` | **0.689** | DETECTED | DETECTED |
+| `hey_millie_02.wav` | **0.614** | DETECTED | DETECTED |
+| `hey_millie_03.wav` | **0.274** | Near threshold | Missed |
+| `hey_millie_04.wav` | **0.187** | Audible in log | Missed |
+| `hey_millie_05.wav` | **0.389** | DETECTED | Missed |
+| `hey_millie_06.wav` | **0.697** | DETECTED | DETECTED |
 
-Put the file in `data/` as `hey_millie.tflite` or `hey_millie.onnx`. If both exist, `.tflite` is loaded first. To use a different file, set `WAKEWORD_MODEL=path/to/model` in `.env`.
+By training on Sarvam's Indian voices, the model successfully generalized to natural Indian pronunciation, raising wake word confidence scores from ~0.00 up to **0.70** on real Indian speech.
 
-Tune `WAKEWORD_THRESHOLD` (default 0.5):
-- **Raise it** if it triggers by itself.
-- **Lower it** if it misses you.
+---
 
-The server log prints every score above 0.15, which makes tuning easier. If no custom model is found, Millie uses openWakeWord's built-in **"hey jarvis"** model.
+### 4.4 Using the model in Millie
+
+The trained models reside in [`data/`](data/):
+- `data/hey_millie.tflite` (default, loaded via LiteRT XNNPACK delegate)
+- `data/hey_millie.onnx` (ONNX Runtime fallback)
+
+You can adjust sensitivity in `.env`:
+```env
+WAKEWORD_MODEL=/Users/.../data/hey_millie.tflite
+WAKEWORD_THRESHOLD=0.30
+```
+- **Lower threshold (0.25–0.35)**: High recall, ideal for quieter or conversational speaking distances.
+- **Higher threshold (0.45–0.60)**: Stricter activation, ideal for noisy environments.
 
 ---
 

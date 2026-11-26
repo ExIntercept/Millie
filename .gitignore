@@ -22,3 +22,4 @@ data/.DS_Store
 # Preserve wake word models
 !data/hey_millie.tflite
 !data/hey_millie.onnx
+*.bak

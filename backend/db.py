@@ -379,24 +379,18 @@ class DB:
                 if clean == r["title"].lower() or clean in r.get("aliases", []):
                     return r
             return None
-        # 1. Exact match on title or artist
+        # 1. Exact match on title, artist, or "title by artist"
         for r in rows:
-            if clean == r["title"].lower() or (r["artist"] and clean == r["artist"].lower()):
+            t = r["title"].lower()
+            art = (r["artist"] or "").lower()
+            if clean == t or (art and clean == art) or (art and clean == f"{t} by {art}"):
                 self._exec("UPDATE music_catalog SET play_count=play_count+1, updated_at=? WHERE id=?", (time.time(), r["id"]))
                 return r
 
-        # 2. Match in aliases
+        # 2. Exact match in aliases
         for r in rows:
-            aliases = r.get("aliases", [])
-            for a in aliases:
-                if a == clean or (len(a) > 3 and a in clean) or (len(clean) > 3 and clean in a):
-                    self._exec("UPDATE music_catalog SET play_count=play_count+1, updated_at=? WHERE id=?", (time.time(), r["id"]))
-                    return r
-
-        # 3. Substring match on title
-        for r in rows:
-            t = r["title"].lower()
-            if (len(clean) > 3 and clean in t) or (len(t) > 3 and t in clean):
+            aliases = [a.lower() for a in r.get("aliases", [])]
+            if clean in aliases:
                 self._exec("UPDATE music_catalog SET play_count=play_count+1, updated_at=? WHERE id=?", (time.time(), r["id"]))
                 return r
 

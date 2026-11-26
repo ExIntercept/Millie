@@ -153,13 +153,52 @@ def _search_spotify_track_online(query: str) -> Optional[str]:
                 access_token = t_data.get("access_token")
 
             if access_token:
-                search_url = f"https://api.spotify.com/v1/search?q={urllib.parse.quote(q_clean)}&type=track&limit=1"
-                s_req = urllib.request.Request(search_url, headers={"Authorization": f"Bearer {access_token}"})
-                with urllib.request.urlopen(s_req, timeout=4) as s_resp:
-                    s_data = json.loads(s_resp.read().decode())
-                    items = s_data.get("tracks", {}).get("items", [])
-                    if items:
-                        return items[0].get("uri")
+                # Build candidates: structured track/artist search, then combined, then raw
+                candidates = []
+                artist_expected = ""
+                if re.search(r"\s+by\s+", q_clean, re.I):
+                    parts = re.split(r"\s+by\s+", q_clean, flags=re.I, maxsplit=1)
+                    t_part, a_part = parts[0].strip(), parts[1].strip()
+                    if t_part and a_part:
+                        artist_expected = a_part.lower()
+                        candidates.append(f'track:"{t_part}" artist:"{a_part}"')
+                        candidates.append(f"{t_part} {a_part}")
+                candidates.append(q_clean)
+
+                bad_indicators = ["karaoke", "party tyme", "tribute", "made popular by", "backing track", "in the style of", "originally performed by"]
+                user_wants_special = any(k in q_clean.lower() for k in ["karaoke", "tribute", "instrumental", "cover"])
+
+                for cand in candidates:
+                    search_url = f"https://api.spotify.com/v1/search?q={urllib.parse.quote(cand)}&type=track&limit=5"
+                    s_req = urllib.request.Request(search_url, headers={"Authorization": f"Bearer {access_token}"})
+                    try:
+                        with urllib.request.urlopen(s_req, timeout=4) as s_resp:
+                            s_data = json.loads(s_resp.read().decode())
+                            items = s_data.get("tracks", {}).get("items", [])
+                            if not items:
+                                continue
+
+                            # Filter out karaoke/tribute junk unless asked
+                            filtered = []
+                            for it in items:
+                                t_name = it.get("name", "").lower()
+                                art_name = " ".join(a.get("name", "").lower() for a in it.get("artists", []))
+                                if not user_wants_special and any(b in t_name or b in art_name for b in bad_indicators):
+                                    continue
+                                filtered.append(it)
+
+                            pool = filtered or items
+                            # If an artist was specified in 'by', prefer items matching that artist
+                            if artist_expected:
+                                for it in pool:
+                                    art_name = " ".join(a.get("name", "").lower() for a in it.get("artists", []))
+                                    if artist_expected in art_name:
+                                        return it.get("uri")
+
+                            if pool:
+                                return pool[0].get("uri")
+                    except Exception as req_err:
+                        log.debug("Candidate search error for '%s': %s", cand, req_err)
         except Exception as e:
             log.warning("Spotify Web API lookup error: %s", e)
 
@@ -278,8 +317,10 @@ def play_spotify(query: Optional[str] = None, action: str = "play", db: Optional
                     if info and " by " in info:
                         p = info.split(" by ", 1)
                         title_guess, artist_guess = p[0].strip(), p[1].strip()
-                    db_inst.add_to_music_catalog(title_guess, artist_guess, target_uri, aliases=[q.lower()])
-                    log.info("Auto-cached to music catalog: %s by %s", title_guess, artist_guess)
+                    low_check = f"{title_guess} {artist_guess}".lower()
+                    if title_guess and not any(k in low_check for k in ["made popular by", "party tyme", "karaoke", "tribute"]):
+                        db_inst.add_to_music_catalog(title_guess, artist_guess, target_uri, aliases=[q.lower()])
+                        log.info("Auto-cached to music catalog: %s by %s", title_guess, artist_guess)
                 except Exception as e:
                     log.warning("Could not auto-cache song: %s", e)
 
