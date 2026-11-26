@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">Millie</div>
+    <nav class="railnav">
+      <div class="navhead">Views</div>
+      <button class="navitem" data-nav="files" id="nav-files">
+        <span class="icon">📁</span><span>Files & Suite</span>
+        <span class="counter" id="rail-cnt-files">0</span>
+      </button>
+      <button class="navitem" data-nav="research" id="nav-research">
+        <span class="icon">🔬</span><span>Research</span>
+        <span class="counter" id="rail-cnt-tabs">0</span>
+      </button>
+      <button class="navitem" data-nav="notes" id="nav-notes">
+        <span class="icon">📝</span><span>Notes</span>
+        <span class="counter" id="rail-cnt-notes">0</span>
+      </button>
+      <button class="navitem" data-nav="timers" id="nav-timers">
+        <span class="icon">⏱️</span><span>Timers & Alarms</span>
+        <span class="counter" id="rail-cnt-timers">0</span>
+      </button>
+      <button class="navitem" data-nav="knowledge" id="nav-knowledge">
+        <span class="icon">🧠</span><span>Knowledge Base</span>
+        <span class="counter" id="rail-cnt-knowledge">0</span>
+      </button>
+      <button class="navitem" data-nav="chat" id="nav-chat">
+        <span class="icon">💬</span><span>Activity & Chat</span>
+      </button>
+
+      <div class="navhead">Quick Open Apps</div>
+      <div class="app-launcher-pills">
+        <button class="app-pill" data-open-app="Spotify" title="Launch Spotify">Spotify</button>
+        <button class="app-pill" data-open-app="Google Chrome" title="Launch Chrome">Chrome</button>
+        <button class="app-pill" data-open-app="Visual Studio Code" title="Launch VS Code">VS Code</button>
+        <button class="app-pill" data-open-app="Finder" title="Open Finder">Finder</button>
+        <button class="app-pill" data-open-app="Notes" title="Open Apple Notes">Notes</button>
+        <button class="app-pill" data-open-app="Terminal" title="Open Terminal">Terminal</button>
+      </div>
+
+      <div class="navhead">Spotify Controls</div>
+      <div class="app-launcher-pills" style="margin-bottom:0;">
+        <button class="app-pill" data-spotify-action="play" title="Play / Resume Spotify">▶ Play</button>
+        <button class="app-pill" data-spotify-action="pause" title="Pause Spotify">⏸ Pause</button>
+        <button class="app-pill" data-spotify-action="next" title="Next Song">⏭ Next</button>
+      </div>
+
+
+      <div class="navhead">Research Tabs</div>
+      <div id="tablist"></div>
+      <form id="newtab-form" class="newtab" autocomplete="off">
+        <input id="newtab-name" placeholder="New research tab" aria-label="New research tab name">
+        <button type="submit" aria-label="Create tab">Add</button>
+      </form>
+    </nav>
+    <div class="railfoot" id="sysinfo"></div>
+  </aside>
+
+  <main>
+    <section class="voice" aria-label="Voice control">
+      <div class="orb" id="orb" data-state="idle" aria-hidden="true"><span class="orb-core"></span></div>
+      <div class="voice-text">
+        <div class="state" id="state-label" role="status" aria-live="polite">Mic is off</div>
+        <div class="heard" id="heard"></div>
+      </div>
+      <div class="voice-controls">
+        <button id="btn-mic" class="primary">Start listening</button>
+        <button id="btn-talk" disabled>Talk</button>
+        <button id="btn-stop" disabled>Stop</button>
+      </div>
+      <form id="text-form" class="typebar" autocomplete="off">
+        <input id="text-input" placeholder="Ask Millie to create files, convert, merge, research, or open apps…" aria-label="Type a request">
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <section class="latency" id="latency" aria-label="Latency of the last request"></section>
+    <div id="banner"></div>
+
+    <nav class="views-nav" role="tablist" aria-label="Main workspace views">
+      <button class="view-tab" data-nav="files" role="tab" aria-selected="true">
+        <span>📁 File System & Suite</span>
+        <span class="badge" id="badge-files">0</span>
+      </button>
+      <button class="view-tab" data-nav="research" role="tab" aria-selected="false">
+        <span>🔬 Research</span>
+        <span class="badge" id="badge-tabs">0</span>
+      </button>
+      <button class="view-tab" data-nav="notes" role="tab" aria-selected="false">
+        <span>📝 Notes</span>
+        <span class="badge" id="badge-notes">0</span>
+      </button>
+      <button class="view-tab" data-nav="timers" role="tab" aria-selected="false">
+        <span>⏱️ Timers & Alarms</span>
+        <span class="badge" id="badge-timers">0</span>
+      </button>
+      <button class="view-tab" data-nav="knowledge" role="tab" aria-selected="false">
+        <span>🧠 Knowledge Base</span>
+        <span class="badge" id="badge-knowledge">0</span>
+      </button>
+      <button class="view-tab" data-nav="chat" role="tab" aria-selected="false">
+        <span>💬 Activity & Chat</span>
+      </button>
+    </nav>
+
+    <div id="view"></div>
+  </main>
+</div>
+<div id="toasts" aria-live="assertive"></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
